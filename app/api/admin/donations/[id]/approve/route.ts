@@ -40,7 +40,7 @@ export async function POST(
         }
 
         // Update donation and transaction
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: any) => {
             // Update donation
             await tx.donation.update({
                 where: { id: donationId },
