@@ -1,0 +1,298 @@
+// Prisma Schema for Trun Community
+// Database: PostgreSQL (Neon)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== AUTH MODELS ====================
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String?   // Null for OAuth users
+  image         String?   // Avatar URL
+  role          UserRole  @default(USER)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  donations     Donation[]
+  comments      Comment[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ==================== DONATION MODELS ====================
+
+enum DonationStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  BANK_TRANSFER
+}
+
+model DonationType {
+  id              String  @id @default(cuid())
+  name            String  // "Một bát cơm", "Một ngày ăn uống"
+  description     String  @db.Text
+  suggestedAmount Decimal @db.Decimal(10, 2)
+  icon            String? // Icon name or emoji
+  displayOrder    Int     @default(0)
+  isActive        Boolean @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  donations       Donation[]
+
+  @@map("donation_types")
+}
+
+model Donation {
+  id          String          @id @default(cuid())
+  amount      Decimal         @db.Decimal(10, 2)
+  message     String?         @db.Text
+  isAnonymous Boolean         @default(false)
+  status      DonationStatus  @default(PENDING)
+  
+  // Donor information (for non-logged-in users)
+  donorName   String?
+  donorEmail  String?
+  donorPhone  String?
+  
+  // References
+  userId      String?
+  typeId      String?
+  goalId      String?
+  
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  user        User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type        DonationType?   @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  transaction Transaction?
+  comments    Comment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("donations")
+}
+
+model Transaction {
+  id                String          @id @default(cuid())
+  donationId        String          @unique
+  provider          PaymentProvider
+  providerTxnId     String?         // Transaction ID from payment provider
+  amount            Decimal         @db.Decimal(10, 2)
+  fee               Decimal?        @db.Decimal(10, 2) // Payment gateway fee
+  status            DonationStatus
+  
+  // Payment metadata (JSON for flexibility)
+  metadata          Json?
+  
+  // IPN/Webhook data
+  ipnData           Json?
+  ipnVerified       Boolean         @default(false)
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // Relations
+  donation          Donation        @relation(fields: [donationId], references: [id], onDelete: Cascade)
+
+  @@index([providerTxnId])
+  @@index([status])
+  @@map("transactions")
+}
+
+// ==================== GOAL MODELS ====================
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+model Goal {
+  id            String       @id @default(cuid())
+  title         String
+  description   String       @db.Text
+  targetAmount  Decimal      @db.Decimal(10, 2)
+  currentAmount Decimal      @default(0) @db.Decimal(10, 2)
+  imageUrl      String?
+  status        GoalStatus   @default(ACTIVE)
+  deadline      DateTime?
+  displayOrder  Int          @default(0)
+  
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  milestones    GoalMilestone[]
+
+  @@index([status])
+  @@index([deadline])
+  @@map("goals")
+}
+
+model GoalMilestone {
+  id          String    @id @default(cuid())
+  goalId      String
+  amount      Decimal   @db.Decimal(10, 2)
+  description String
+  achieved    Boolean   @default(false)
+  achievedAt  DateTime?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  goal        Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+  @@index([achieved])
+  @@map("goal_milestones")
+}
+
+// ==================== COMMUNITY MODELS ====================
+
+enum ActivityType {
+  DONATION
+  GOAL_CREATED
+  GOAL_COMPLETED
+  MILESTONE_ACHIEVED
+  UPDATE_POSTED
+  COMMENT_POSTED
+}
+
+model Activity {
+  id        String       @id @default(cuid())
+  type      ActivityType
+  content   String       @db.Text
+  metadata  Json?        // Flexible data for different activity types
+  
+  createdAt DateTime     @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+  @@map("activities")
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  content    String   @db.Text
+  
+  // References
+  userId     String
+  donationId String?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  // Relations
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  donation   Donation? @relation(fields: [donationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([donationId])
+  @@index([createdAt])
+  @@map("comments")
+}
+
+// ==================== CONTENT MODELS ====================
+
+enum PostType {
+  UPDATE
+  STORY
+  ANNOUNCEMENT
+  REPORT
+}
+
+model Post {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  type        PostType @default(UPDATE)
+  coverImage  String?
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([type])
+  @@index([isPublished])
+  @@index([publishedAt])
+  @@map("posts")
+}
