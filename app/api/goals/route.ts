@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import { Goal, GoalMilestone } from '@prisma/client'
 
 /**
  * Get current active goals with progress
@@ -27,7 +28,7 @@ export async function GET() {
 
         // Calculate progress for each goal
         const goalsWithProgress = await Promise.all(
-            goals.map(async (goal) => {
+            goals.map(async (goal: Goal & { milestones: GoalMilestone[] }) => {
                 // Sum all completed donations for this goal
                 const donations = await prisma.donation.findMany({
                     where: {
