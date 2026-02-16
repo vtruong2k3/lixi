@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 
@@ -38,7 +37,7 @@ export async function GET() {
                 })
 
                 const currentAmount = donations.reduce(
-                    (sum, donation) => sum + Number(donation.amount),
+                    (sum: number, donation: (typeof donations)[number]) => sum + Number(donation.amount),
                     0
                 )
 
@@ -49,7 +48,7 @@ export async function GET() {
 
                 // Check milestone achievements
                 const achievedMilestones = goal.milestones.filter(
-                    (m: any) => currentAmount >= Number(m.amount) && !m.achieved
+                    (m: (typeof goal.milestones)[number]) => currentAmount >= Number(m.amount) && !m.achieved
                 )
 
                 return {
