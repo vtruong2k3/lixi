@@ -56,7 +56,7 @@ export default function HeroSection() {
                         </h1>
 
                         <p className="text-xl text-white/90 leading-relaxed">
-                            Năm mới Ất Tỵ, cùng chúc Trừn một năm an khang thịnh vượng.
+                            Năm mới Bính Ngọ, cùng chúc Trừn một năm an khang thịnh vượng.
                             Mỗi phong bao lì xì đều mang theo lời chúc may mắn và phúc lộc.
                         </p>
 
